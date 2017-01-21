@@ -212,11 +212,11 @@ void loop_update(int loop_counter)
 		}
 }
 
-void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval)
+void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval, int my_flow_id)
 {
   struct chunk *new_chunk;
-
-	new_chunk = generated_chunk(&(chunk_time_interval->tv_usec));
+fprintf(stderr,"SPAWN CHUNK \n");
+	new_chunk = generated_chunk(&(chunk_time_interval->tv_usec), my_flow_id);
 	usec2timeval(chunk_time_interval,chunk_time_interval->tv_usec);
 	if (new_chunk && add_chunk(new_chunk))
 	{ 
@@ -225,7 +225,7 @@ void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval)
 	}
 }
 
-void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int chunk_copies, int buff_size)
+void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int chunk_copies, int buff_size, int my_flow_id)
 /* source peer loop
  * @videofile: video input filename
  * @nodeid: local network identifier
@@ -234,6 +234,7 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
  * @buff_size: size of the chunk buffer
  */
 {
+    fprintf(stderr,"SOURCE LOOP\n");
 	bool running=true;
 	int data_ready,loop_counter=0;
 	struct timeval awake_epoch, sleep_timer;
@@ -270,7 +271,7 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
 				}
 				else // chunk time ! <- needed for chunkisers withouth filedescritors, e.g., avf
 				{
-					spawn_chunk(chunk_copies,&chunk_time_interval);
+					spawn_chunk(chunk_copies,&chunk_time_interval, my_flow_id);
 					timeradd_inplace(&chunk_epoch, &chunk_time_interval); 
 				}
 
@@ -285,7 +286,7 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
 				break;
 
 			case 2: //file descriptor ready
-				spawn_chunk(chunk_copies,&chunk_time_interval);
+				spawn_chunk(chunk_copies,&chunk_time_interval, my_flow_id);
 				break;
 		
 			default:

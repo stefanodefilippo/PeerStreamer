@@ -62,10 +62,14 @@ static uint16_t chunk_test_port = 60006;
 static const char *chunk_test_ip = "127.0.0.1";
 static int chunk_test_mtu = 1372;
 
+static int my_flow_id = 1;
+
 static const char *my_iface = NULL;
 static int port = 6666;
 static int srv_port;
 static const char *srv_ip = "";
+/*static int srv_port1 = 8000;
+static const char *srv_ip1 = "127.0.0.1";*/
 static int chunks_per_second = 25;
 static double capacity_override = NAN;
 static int multiply = 3;
@@ -158,6 +162,7 @@ static void print_usage(int argc, char *argv[])
     "\t[-S]: set initial chunk_id (source only).\n"
     "\t[-s]: set start_id from which to start output.\n"
     "\t[-e]: set end_id at which to end output.\n"
+    "\t[-w]: set flow id of generated chinks.\n"
     "\n"
     "Special options\n"
     "\t[--randomize_start us]: random wait before starting [0..us] microseconds.\n"
@@ -246,7 +251,7 @@ static void cmdline_parse(int argc, char *argv[])
 	{0, 0, 0, 0}
   };
 
-    while ((o = getopt_long (argc, argv, "r:a:b:o:O:c:p:i:P:I:f:F:m:lC:N:n:M:t:s:e:S:6v:x:y:z:",long_options, &option_index)) != -1) { //use this function to manage long options
+    while ((o = getopt_long (argc, argv, "r:a:b:o:O:c:p:i:P:I:f:F:m:lC:N:n:M:t:s:e:S:6v:w:x:y:z:",long_options, &option_index)) != -1) { //use this function to manage long options
     switch(o) {
       case 0: //for long options
         if( strcmp( "chunk_log", long_options[option_index].name ) == 0 ) { chunk_log = true; }
@@ -350,6 +355,9 @@ static void cmdline_parse(int argc, char *argv[])
         fprintf(stderr, "\tlibevent: %s\n", LIBEVENT_VERSION);
         fprintf(stderr, "\tlibxml2: %s\n", LIBXML2_VERSION);
 	    exit(0);
+      case 'w':
+        my_flow_id = atoi(optarg);
+        break; 
       case 'x':
         chunk_test_port = atoi(optarg);
         break;
@@ -499,11 +507,13 @@ int main(int argc, char *argv[])
   if (srv_port != 0) {
     fprintf(stderr, "Hi, I play the generic peer role\n");
     struct nodeID *srv;
-
+    struct nodeID *srv1;
+    
     if (chunk_test_init(chunk_test_port, chunk_test_ip, chunk_test_mtu)) {
       fprintf(stderr, "Cannot initialize chunk test: %s:%d\n", chunk_test_ip, chunk_test_port);
       return -1;
     }
+    
 
     //random wait a bit before starting
     if (randomize_start) random_wait(randomize_start);
@@ -511,18 +521,30 @@ int main(int argc, char *argv[])
     output_init(outbuff_size, output_config);
 
     srv = create_node(srv_ip, srv_port);
+    //srv1 = create_node(srv_ip1, srv_port1);
 	
     if (srv == NULL) {
       fprintf(stderr, "Cannot resolve remote address %s:%d\n", srv_ip, srv_port);
 
       return -1;
     }
-    topology_node_insert(srv);
+    
+    /*if (srv1 == NULL) {
+      fprintf(stderr, "Cannot resolve remote address %s:%d\n", srv_ip1, srv_port1);
+
+      return -1;
+    }*/
+    
+    //topology_node_insert(srv1);//20
+    topology_node_insert(srv);//10
+    
+    
+    
 
     loop(my_sock, 1000000 / chunks_per_second, buff_size);
   } else {
     fprintf(stderr, "Hi, I play the source role\n");
-    source_loop(fname, my_sock, 1000000 / chunks_per_second, multiply, buff_size);
+    source_loop(fname, my_sock, 1000000 / chunks_per_second, multiply, buff_size, my_flow_id);
   }
   return 0;
 }
