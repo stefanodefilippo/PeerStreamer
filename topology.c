@@ -231,6 +231,7 @@ void topology_message_parse(struct nodeID *from, const uint8_t *buff, int len)
 			}
 			break;
 		case MSG_TYPE_TOPOLOGY:
+			psample_update_flow_id_set(context.tc);
 			psample_parse_data(context.tc,buff,len);
 			//fprintf(stderr,"[DEBUG] received TOPO message\n");
 			break;
