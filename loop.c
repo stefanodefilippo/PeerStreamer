@@ -212,11 +212,10 @@ void loop_update(int loop_counter)
 		}
 }
 
-void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval, int my_flow_id)
+void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval, int my_session_id)
 {
   struct chunk *new_chunk;
-fprintf(stderr,"SPAWN CHUNK \n");
-	new_chunk = generated_chunk(&(chunk_time_interval->tv_usec), my_flow_id);
+	new_chunk = generated_chunk(&(chunk_time_interval->tv_usec), my_session_id);
 	usec2timeval(chunk_time_interval,chunk_time_interval->tv_usec);
 	if (new_chunk && add_chunk(new_chunk))
 	{ 
@@ -225,7 +224,7 @@ fprintf(stderr,"SPAWN CHUNK \n");
 	}
 }
 
-void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int chunk_copies, int buff_size, int my_flow_id)
+void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int chunk_copies, int buff_size, int my_session_id)
 /* source peer loop
  * @videofile: video input filename
  * @nodeid: local network identifier
@@ -250,6 +249,10 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
     fprintf(stderr,"Cannot initialize source, exiting");
     exit(-1);
   }
+        
+        topology_add_session_id(my_session_id);
+        topology_set_distributed(my_session_id, true);
+        
 	while(running)
 	{
 		if(fds[0] !=-1) {
@@ -271,7 +274,7 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
 				}
 				else // chunk time ! <- needed for chunkisers withouth filedescritors, e.g., avf
 				{
-					spawn_chunk(chunk_copies,&chunk_time_interval, my_flow_id);
+					spawn_chunk(chunk_copies,&chunk_time_interval, my_session_id);
 					timeradd_inplace(&chunk_epoch, &chunk_time_interval); 
 				}
 
@@ -286,7 +289,7 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
 				break;
 
 			case 2: //file descriptor ready
-				spawn_chunk(chunk_copies,&chunk_time_interval, my_flow_id);
+				spawn_chunk(chunk_copies,&chunk_time_interval, my_session_id);
 				break;
 		
 			default:

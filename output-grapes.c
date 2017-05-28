@@ -152,7 +152,7 @@ void output_deliver(const struct chunk *c)
   if (c->id < next_chunk) {
     return;
   }
-  
+
   /* Initialize buffer with first chunk */
   if (next_chunk == -1) {
     next_chunk = c->id; // FIXME: could be anything between c->id and (c->id - buff_size + 1 > 0) ? c->id - buff_size + 1 : 0

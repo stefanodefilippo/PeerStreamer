@@ -221,7 +221,7 @@ void neighbourhood_message_parse(struct nodeID *from,const uint8_t *buff,int len
 }
 
 void topology_message_parse(struct nodeID *from, const uint8_t *buff, int len)
-{
+{               
 	switch(buff[0]) {
 		case MSG_TYPE_NEIGHBOURHOOD:
 			if (topo_in)
@@ -231,7 +231,7 @@ void topology_message_parse(struct nodeID *from, const uint8_t *buff, int len)
 			}
 			break;
 		case MSG_TYPE_TOPOLOGY:
-			psample_update_flow_id_set(context.tc);
+                        //psample_update_random_session_id_set(context.tc);
 			psample_parse_data(context.tc,buff,len);
 			//fprintf(stderr,"[DEBUG] received TOPO message\n");
 			break;
@@ -592,4 +592,12 @@ void topology_update()
       peerset_pop_peer(context.locked_neighs,p->id);
     peerset_clear(context.swarm_bucket,0);  // we don't remember past peers
   }
+}
+
+void topology_add_session_id(int session_id){
+    psample_add_session_id(context.tc, session_id);
+}
+
+void topology_set_distributed(int session_id, bool value){
+    psample_set_distributed(context.tc, session_id, value);
 }

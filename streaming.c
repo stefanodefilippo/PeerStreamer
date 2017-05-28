@@ -147,7 +147,7 @@ int source_init(const char *fname, struct nodeID *myID, int *fds, int fds_size, 
   return 0;
 }
 
-void chunk_attributes_fill(struct chunk* c, int my_flow_id)
+void chunk_attributes_fill(struct chunk* c, int my_session_id)
 {
   struct chunk_attributes * ca;
   int priority = 1;
@@ -175,7 +175,7 @@ void chunk_attributes_fill(struct chunk* c, int my_flow_id)
   ca->hopcount = 0;
   //ca->id_flow = 3;// -> 768
   //ca->id_flow = 10; -> 2560
-  ca->id_flow = my_flow_id;// -> 15104
+  ca->id_flow = my_session_id;// -> 15104
 }
 
 int chunk_get_hopcount(const struct chunk* c) {
@@ -353,30 +353,7 @@ void received_chunk(struct nodeID *from, const uint8_t *buff, int len)
   i++;
   ca = (struct chunk_attributes *) c.attributes;
   uint16_t id_flow = ca->id_flow;
-  fprintf(stderr, "---------RICEVUTO CHUNK CON FLOW_ID = %d---------\n", (id_flow));
-  /*if(i <= 200 && id_flow == 10){
-      fprintf(stderr, "---------------------------RITORNO-------------------------\n");
-      return;
-  }*/
-  /*if(id_flow == 20){
-      fprintf(stderr, "---------------------------RITORNO-------------------------\n");
-      return;
-  }*/
-  /*if(j != 0){
-      c.id = ++j;
-  }*/
-  /*if (i == 200){
-      fprintf(stderr, "---------------------------CAMBIO-------------------------------------------------------------------------------\n");
-  }
-  
-        fprintf(stderr, "id: %d\n", c.id);*/
-
-  /*if(i == 100){
-  fprintf(stderr, "------------------------------TROVATO CHUNK %d: CAMBIO LA PORTA-----------------------------------------------------------------\n", i);
-  exit(0);
-  }*/
-  //if(c.attributes.)
-  
+  fprintf(stderr, "---------RICEVUTO CHUNK CON SESSION_ID = %d---------\n", (id_flow));
   if (res > 0) {
 		if (chunk_loss_interval && c.id % chunk_loss_interval == 0) {
 			fprintf(stderr,"[NOISE] Chunk %d discarded >:)\n",c.id);
@@ -389,22 +366,7 @@ void received_chunk(struct nodeID *from, const uint8_t *buff, int len)
     dprintf("Received chunk %d from peer: %s\n", c.id, node_addr_tr(from));
     if(chunk_log) log_chunk(from,get_my_addr(),&c,"RECEIVED");
 //{fprintf(stderr, "TEO: Peer %s received chunk %d from peer: %s at: %"PRIu64" hopcount: %i Size: %d bytes\n", node_addr_tr(get_my_addr()),c.id, node_addr_tr(from), gettimeofday_in_us(), chunk_get_hopcount(&c), c.size);}
-    /*if(i == 10){
-        flag = c;
-    }
-    if(i % 50 == 48){
-        flag.id = c.id;
-        c = flag;
-        fprintf(stderr, "MODIFICATO CHUNK %d; nuova dim: %d\n", c.id, c.size);
-    }
-        i++;
-        fprintf(stderr, "%d - IN SPEDIZIONE CHUNK %d; con dim: %d\n", i, c.id, c.size);*/
-        //flag.id = c.id;
-        //if(i % 2 == 0){
     output_deliver(&c);
-        //}else{
-       //output_deliver(&flag);
-       // }
     res = cb_add_chunk(cb, &c);
     reg_chunk_receive(c.id, c.timestamp, chunk_get_hopcount(&c), res==E_CB_OLD, res==E_CB_DUPLICATE);
     cb_print();
@@ -428,7 +390,7 @@ void received_chunk(struct nodeID *from, const uint8_t *buff, int len)
   }
 }
 
-struct chunk *generated_chunk(suseconds_t *delta, int my_flow_id)
+struct chunk *generated_chunk(suseconds_t *delta, int my_session_id)
 {
   struct chunk *c;
 
@@ -448,7 +410,7 @@ struct chunk *generated_chunk(suseconds_t *delta, int my_flow_id)
     return NULL;
   }
   dprintf("Generated chunk %d of %d bytes\n",c->id, c->size);
-  chunk_attributes_fill(c, my_flow_id);
+  chunk_attributes_fill(c, my_session_id);
   return c;
 }
 

@@ -62,7 +62,7 @@ static uint16_t chunk_test_port = 60006;
 static const char *chunk_test_ip = "127.0.0.1";
 static int chunk_test_mtu = 1372;
 
-static int my_flow_id = 1;
+static int my_session_id = 1;
 
 static const char *my_iface = NULL;
 static int port = 6666;
@@ -356,7 +356,7 @@ static void cmdline_parse(int argc, char *argv[])
         fprintf(stderr, "\tlibxml2: %s\n", LIBXML2_VERSION);
 	    exit(0);
       case 'w':
-        my_flow_id = atoi(optarg);
+        my_session_id = atoi(optarg);
         break; 
       case 'x':
         chunk_test_port = atoi(optarg);
@@ -544,7 +544,7 @@ int main(int argc, char *argv[])
     loop(my_sock, 1000000 / chunks_per_second, buff_size);
   } else {
     fprintf(stderr, "Hi, I play the source role\n");
-    source_loop(fname, my_sock, 1000000 / chunks_per_second, multiply, buff_size, my_flow_id);
+    source_loop(fname, my_sock, 1000000 / chunks_per_second, multiply, buff_size, my_session_id);
   }
   return 0;
 }
