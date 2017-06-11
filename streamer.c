@@ -52,6 +52,7 @@
 
 #ifndef EXTRAVERSION
 #define EXTRAVERSION "Unknown"
+#define SDP_SIZE 1500
 #endif
 
 static struct nodeID *my_sock;
@@ -62,8 +63,8 @@ static uint16_t chunk_test_port = 60006;
 static const char *chunk_test_ip = "127.0.0.1";
 static int chunk_test_mtu = 1372;
 
-static int my_session_id = 1;
-
+static int my_session_id = 6;
+static unsigned long my_session_version = 0;
 static const char *my_iface = NULL;
 static int port = 6666;
 static int srv_port;
@@ -474,6 +475,14 @@ void leave(int sig) {
   exit(sig);
 }
 
+unsigned long get_timestamp()
+{
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    unsigned long time_in_micros = 1000000 * tv.tv_sec + tv.tv_usec;
+    return time_in_micros;
+}
+
 // wait [0..max] microsec
 static void random_wait(int max) {
     uint64_t us;
@@ -489,6 +498,27 @@ static void random_wait(int max) {
     //Sleep(us / 1000000);
     usleep(us % 1000000);
 #endif
+}
+
+void prepare_SDP(int my_session_id)
+{
+    char s[32];
+    strcpy(s, "SDP");
+    char str[15];
+    sprintf(str, "%d", my_session_id);
+    strcat(s, str);
+    FILE *f = fopen(s, "w");
+    if (f == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+    fprintf(f, "v=0\n");
+    fprintf(f, "s= - %d %lu IN IP4 %s\n", my_session_id, my_session_version, iface_addr(my_iface));
+    fprintf(f, "t=0 0\n");
+    fprintf(f, "m=audio 49170 RTP/AVP 0\n");
+    fprintf(f, "m=audio 51372 RTP/AVP 0\0");
+    fclose(f);
 }
 
 int main(int argc, char *argv[])
@@ -508,6 +538,7 @@ int main(int argc, char *argv[])
     fprintf(stderr, "Hi, I play the generic peer role\n");
     struct nodeID *srv;
     struct nodeID *srv1;
+    my_session_version = get_timestamp();
     
     if (chunk_test_init(chunk_test_port, chunk_test_ip, chunk_test_mtu)) {
       fprintf(stderr, "Cannot initialize chunk test: %s:%d\n", chunk_test_ip, chunk_test_port);
@@ -538,12 +569,17 @@ int main(int argc, char *argv[])
     //topology_node_insert(srv1);//20
     topology_node_insert(srv);//10
     
-    
-    
+    /*srand(time(NULL));   // should only be called once
+    int r = rand() % 50;      // returns a pseudo-random integer between 0 and RAND_MAX
+    prepare_SDP(r);
+    topology_add_session_id(r);
+    topology_set_distributed(r, true);*/
 
     loop(my_sock, 1000000 / chunks_per_second, buff_size);
   } else {
     fprintf(stderr, "Hi, I play the source role\n");
+    prepare_SDP(my_session_id);
+    //prepare_SDP(4);
     source_loop(fname, my_sock, 1000000 / chunks_per_second, multiply, buff_size, my_session_id);
   }
   return 0;

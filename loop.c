@@ -162,6 +162,8 @@ void handle_msg(const struct nodeID* nodeid,bool source_role)
 		fprintf(stderr,"Error receiving message. Maybe larger than %d bytes\n", BUFFSIZE);
 	}else
 		switch (buff[0] /* Message Type */) {
+                        case MSG_TYPE_SDP:
+                            fprintf(stderr,"handle_msg: RICEVUTO MESSAGGIO MSG_TYPE_SDP\n");
 			case MSG_TYPE_TMAN:
 			case MSG_TYPE_NEIGHBOURHOOD:
 			case MSG_TYPE_TOPOLOGY:
@@ -233,7 +235,6 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
  * @buff_size: size of the chunk buffer
  */
 {
-    fprintf(stderr,"SOURCE LOOP\n");
 	bool running=true;
 	int data_ready,loop_counter=0;
 	struct timeval awake_epoch, sleep_timer;
@@ -252,6 +253,9 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
         
         topology_add_session_id(my_session_id);
         topology_set_distributed(my_session_id, true);
+        
+        /*topology_add_session_id(4);
+        topology_set_distributed(4, true);*/
         
 	while(running)
 	{

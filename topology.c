@@ -119,6 +119,7 @@ int topology_init(struct nodeID *myID,const char *config)
 {
 	bind_msg_type(MSG_TYPE_NEIGHBOURHOOD);
 	bind_msg_type(MSG_TYPE_TOPOLOGY);
+        bind_msg_type(MSG_TYPE_SDP);
 	update_metadata();
 	context.tout_bmap.tv_sec = 20;
 	context.tout_bmap.tv_usec = 0;
@@ -230,6 +231,7 @@ void topology_message_parse(struct nodeID *from, const uint8_t *buff, int len)
 				reg_neigh_size(peerset_size(context.neighbourhood));
 			}
 			break;
+                case MSG_TYPE_SDP:
 		case MSG_TYPE_TOPOLOGY:
                         //psample_update_random_session_id_set(context.tc);
 			psample_parse_data(context.tc,buff,len);
