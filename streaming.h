@@ -33,7 +33,7 @@ void stream_init(int size, struct nodeID *myID);
 int source_init(const char *fname, struct nodeID *myID, int *fds, int fds_size, int buff_size);
 void received_chunk(struct nodeID *from, const uint8_t *buff, int len);
 void send_chunk();
-struct chunk *generated_chunk(suseconds_t *delta, int my_session_id);
+struct chunk *generated_chunk(suseconds_t *delta, char * my_session_id);
 int add_chunk(struct chunk *c);
 struct chunkID_set *get_chunks_to_accept(const struct nodeID *fromid, const struct chunkID_set *cset_off, int max_deliver, uint16_t trans_id);
 void send_offer();

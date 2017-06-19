@@ -596,10 +596,10 @@ void topology_update()
   }
 }
 
-void topology_add_session_id(int session_id){
+void topology_add_session_id(char * session_id){
     psample_add_session_id(context.tc, session_id);
 }
 
-void topology_set_distributed(int session_id, bool value){
+void topology_set_distributed(char * session_id, bool value){
     psample_set_distributed(context.tc, session_id, value);
 }

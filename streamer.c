@@ -28,6 +28,7 @@
 #include <time.h>
 #include <errno.h>
 #include <math.h>
+#include <time.h>
 #ifndef NAN	//NAN is missing in some old math.h versions
 #define NAN            (0.0/0.0)
 #endif
@@ -52,7 +53,7 @@
 
 #ifndef EXTRAVERSION
 #define EXTRAVERSION "Unknown"
-#define SDP_SIZE 1500
+#define SESSION_ID_SIZE 32
 #endif
 
 static struct nodeID *my_sock;
@@ -62,8 +63,8 @@ const char *peername = NULL;
 static uint16_t chunk_test_port = 60006;
 static const char *chunk_test_ip = "127.0.0.1";
 static int chunk_test_mtu = 1372;
-
-static int my_session_id = 6;
+static char my_session_id[SESSION_ID_SIZE];
+//static int my_session_id = 6;
 static unsigned long my_session_version = 0;
 static const char *my_iface = NULL;
 static int port = 6666;
@@ -81,6 +82,7 @@ static const char *fname = "/dev/stdin";
 static const char *output_config ="";
 const char * xloptimization = NULL;
 static const char *net_helper_config = "";
+static const char *session_id_set_config = "";
 static const char *topo_config = "";
 unsigned char msgTypes[] = {MSG_TYPE_CHUNK,MSG_TYPE_SIGNALLING};
 bool chunk_log = false;
@@ -163,7 +165,7 @@ static void print_usage(int argc, char *argv[])
     "\t[-S]: set initial chunk_id (source only).\n"
     "\t[-s]: set start_id from which to start output.\n"
     "\t[-e]: set end_id at which to end output.\n"
-    "\t[-w]: set flow id of generated chinks.\n"
+    "\t[-w]: set policy for SDP distribution.\n"
     "\n"
     "Special options\n"
     "\t[--randomize_start us]: random wait before starting [0..us] microseconds.\n"
@@ -357,7 +359,7 @@ static void cmdline_parse(int argc, char *argv[])
         fprintf(stderr, "\tlibxml2: %s\n", LIBXML2_VERSION);
 	    exit(0);
       case 'w':
-        my_session_id = atoi(optarg);
+        session_id_set_config = strdup(optarg);
         break; 
       case 'x':
         chunk_test_port = atoi(optarg);
@@ -500,13 +502,14 @@ static void random_wait(int max) {
 #endif
 }
 
-void prepare_SDP(int my_session_id)
+void prepare_SDP(char * my_session_id)
 {
-    char s[32];
+    fprintf(stderr, "prepare_SDP: PREPARAZIONE DEL FILE SDP...\n");
+    char s[64];
     strcpy(s, "SDP");
-    char str[15];
-    sprintf(str, "%d", my_session_id);
-    strcat(s, str);
+    /*char str[15];
+    sprintf(str, "%d", my_session_id);*/
+    strcat(s + 3, my_session_id);
     FILE *f = fopen(s, "w");
     if (f == NULL)
     {
@@ -514,11 +517,33 @@ void prepare_SDP(int my_session_id)
         exit(1);
     }
     fprintf(f, "v=0\n");
-    fprintf(f, "s= - %d %lu IN IP4 %s\n", my_session_id, my_session_version, iface_addr(my_iface));
+    fprintf(f, "o= - %lu %lu IN IP4 %s\n", my_session_version, my_session_version, iface_addr(my_iface));
+    fprintf(f, "ESP H264+AAC STREAM\n");
+    fprintf(f, "c=IN IP4 %s\n", iface_addr(my_iface));
     fprintf(f, "t=0 0\n");
-    fprintf(f, "m=audio 49170 RTP/AVP 0\n");
-    fprintf(f, "m=audio 51372 RTP/AVP 0\0");
+    fprintf(f, "m=video 7000 RTP/AVP 96\n");
+    fprintf(f, "a=rtpmap:96 H264/90000\n");
+    fprintf(f, "a=fmtp:96 media=video; clock-rate=90000; encoding-name=H264; sprop-parameter-sets=Z2QAH6zZQFAFuwEQAAADABAAAAMDAPGDGWA=,aOvjyyLA\n");
+    fprintf(f, "a=control:trackID=1\n");
+    fprintf(f, "m=audio 7002 RTP/AVP 96\n");
+    fprintf(f, "a=rtpmap:96 MP4A-LATM/48000\n");
+    fprintf(f, "a=fmtp:96 media=audio; clock-rate=48000; encoding-name=MP4A-LATM; cpresent=0; config=40002320adca00; payload=96\n");
+    fprintf(f, "a=control:trackID=2\0");
     fclose(f);
+}
+
+void prepare_session_id(){
+    for(int i = 0; i < SESSION_ID_SIZE; i++){
+        my_session_id[i] = '-';
+    }
+    fprintf(stderr, "prepare_session_id: SESSION_ID_GENERATO: %s\n", my_session_id);
+    strcpy(my_session_id + 16, iface_addr(my_iface));
+    srand(time(NULL) + getpid());
+    for(int i = 0; i < 16 - 1; i++){
+        my_session_id[i] = 'A' + (rand() % 26);
+    }
+    my_session_id[SESSION_ID_SIZE - 1] = '\0';
+    fprintf(stderr, "prepare_session_id: SESSION_ID_GENERATO: %s\n", my_session_id);
 }
 
 int main(int argc, char *argv[])
@@ -534,11 +559,11 @@ int main(int argc, char *argv[])
     fprintf(stderr, "Cannot initialize streamer, exiting!\n");
     return -1;
   }
+  my_session_version = get_timestamp();
   if (srv_port != 0) {
     fprintf(stderr, "Hi, I play the generic peer role\n");
     struct nodeID *srv;
     struct nodeID *srv1;
-    my_session_version = get_timestamp();
     
     if (chunk_test_init(chunk_test_port, chunk_test_ip, chunk_test_mtu)) {
       fprintf(stderr, "Cannot initialize chunk test: %s:%d\n", chunk_test_ip, chunk_test_port);
@@ -578,6 +603,7 @@ int main(int argc, char *argv[])
     loop(my_sock, 1000000 / chunks_per_second, buff_size);
   } else {
     fprintf(stderr, "Hi, I play the source role\n");
+    prepare_session_id();
     prepare_SDP(my_session_id);
     //prepare_SDP(4);
     source_loop(fname, my_sock, 1000000 / chunks_per_second, multiply, buff_size, my_session_id);

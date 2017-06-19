@@ -151,6 +151,50 @@ void chunk_test_forward(const uint8_t *buff, int len)
   } while (offset != len);
 }
 
+
+void write_test()
+{
+    unsigned long timestamp = get_timestamp();
+    unsigned long initial_timestamp = 0;
+    char line[64];
+    char plus[64];
+    FILE *f = fopen("tempi_ricezione", "r");
+    if (f == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+    if (fgets(line, sizeof (line), f)) {
+          printf("next line= %s\n", line);
+        }
+    initial_timestamp = strtoul(line, plus, 10);
+    fclose(f);
+    
+    timestamp = timestamp - initial_timestamp;
+    
+    f = fopen("tempi_ricezione", "a");
+    if (f == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+    fprintf(f, "tempo ricezione SDP: %lu\n", timestamp);
+    fclose(f);
+}
+
+void write_test_source()
+{
+    unsigned long timestamp = get_timestamp();
+    FILE *f = fopen("tempi_ricezione", "a");
+    if (f == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+    fprintf(f, "%lu\n", timestamp);
+    fclose(f);
+}
+
 void handle_msg(const struct nodeID* nodeid,bool source_role)
 {
 	uint8_t buff[BUFFSIZE];
@@ -164,6 +208,7 @@ void handle_msg(const struct nodeID* nodeid,bool source_role)
 		switch (buff[0] /* Message Type */) {
                         case MSG_TYPE_SDP:
                             fprintf(stderr,"handle_msg: RICEVUTO MESSAGGIO MSG_TYPE_SDP\n");
+                            write_test();
 			case MSG_TYPE_TMAN:
 			case MSG_TYPE_NEIGHBOURHOOD:
 			case MSG_TYPE_TOPOLOGY:
@@ -214,7 +259,7 @@ void loop_update(int loop_counter)
 		}
 }
 
-void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval, int my_session_id)
+void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval, char * my_session_id)
 {
   struct chunk *new_chunk;
 	new_chunk = generated_chunk(&(chunk_time_interval->tv_usec), my_session_id);
@@ -226,7 +271,7 @@ void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval, int my_se
 	}
 }
 
-void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int chunk_copies, int buff_size, int my_session_id)
+void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int chunk_copies, int buff_size, char * my_session_id)
 /* source peer loop
  * @videofile: video input filename
  * @nodeid: local network identifier
@@ -235,6 +280,7 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
  * @buff_size: size of the chunk buffer
  */
 {
+        write_test_source();
 	bool running=true;
 	int data_ready,loop_counter=0;
 	struct timeval awake_epoch, sleep_timer;
@@ -251,8 +297,10 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
     exit(-1);
   }
         
+        fprintf(stderr,"source_loop: AGGIUNTA DEL MIO SESION ID IN CORSO..\n");
         topology_add_session_id(my_session_id);
         topology_set_distributed(my_session_id, true);
+        fprintf(stderr,"source_loop: AGGIUNTO IL MIO SESSION ID\n");
         
         /*topology_add_session_id(4);
         topology_set_distributed(4, true);*/

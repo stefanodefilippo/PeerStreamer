@@ -59,6 +59,7 @@
 #include "scheduler_la.h"
 
 # define CB_SIZE_TIME_UNLIMITED 1e12
+# define SESSION_ID_SIZE 32
 uint64_t CB_SIZE_TIME = CB_SIZE_TIME_UNLIMITED;	//in millisec, defaults to unlimited
 
 static bool heuristics_distance_maxdeliver = false;
@@ -70,7 +71,7 @@ struct chunk_attributes {
   uint64_t deadline;
   uint16_t deadline_increment;
   uint16_t hopcount;
-  uint16_t id_flow;
+  char id_session[SESSION_ID_SIZE];
 } __attribute__((packed));
 
 extern bool chunk_log;
@@ -147,7 +148,7 @@ int source_init(const char *fname, struct nodeID *myID, int *fds, int fds_size, 
   return 0;
 }
 
-void chunk_attributes_fill(struct chunk* c, int my_session_id)
+void chunk_attributes_fill(struct chunk* c, char * my_session_id)
 {
   struct chunk_attributes * ca;
   int priority = 1;
@@ -175,7 +176,7 @@ void chunk_attributes_fill(struct chunk* c, int my_session_id)
   ca->hopcount = 0;
   //ca->id_flow = 3;// -> 768
   //ca->id_flow = 10; -> 2560
-  ca->id_flow = my_session_id;// -> 15104
+  strcpy(ca->id_session, my_session_id);// -> 15104
 }
 
 int chunk_get_hopcount(const struct chunk* c) {
@@ -352,8 +353,9 @@ void received_chunk(struct nodeID *from, const uint8_t *buff, int len)
   res = parseChunkMsg(buff + 1, len - 1, &c, &transid);
   i++;
   ca = (struct chunk_attributes *) c.attributes;
-  uint16_t id_flow = ca->id_flow;
-  fprintf(stderr, "---------RICEVUTO CHUNK CON SESSION_ID = %d---------\n", (id_flow));
+  char id_session[SESSION_ID_SIZE];
+  strcpy(id_session, ca->id_session);
+  fprintf(stderr, "---------RICEVUTO CHUNK CON SESSION_ID = %s---------\n", (id_session));
   if (res > 0) {
 		if (chunk_loss_interval && c.id % chunk_loss_interval == 0) {
 			fprintf(stderr,"[NOISE] Chunk %d discarded >:)\n",c.id);
@@ -390,7 +392,7 @@ void received_chunk(struct nodeID *from, const uint8_t *buff, int len)
   }
 }
 
-struct chunk *generated_chunk(suseconds_t *delta, int my_session_id)
+struct chunk *generated_chunk(suseconds_t *delta, char * my_session_id)
 {
   struct chunk *c;
 
