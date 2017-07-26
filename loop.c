@@ -48,6 +48,7 @@
 #include "loop.h"
 #include "dbg.h"
 #include "node_addr.h"
+#include "SDP_distribution.h"
 
 #define BUFFSIZE (512 * 1024)
 #define FDSSIZE 16
@@ -151,50 +152,6 @@ void chunk_test_forward(const uint8_t *buff, int len)
   } while (offset != len);
 }
 
-
-void write_test()
-{
-    unsigned long timestamp = get_timestamp();
-    unsigned long initial_timestamp = 0;
-    char line[64];
-    char plus[64];
-    FILE *f = fopen("tempi_ricezione", "r");
-    if (f == NULL)
-    {
-        printf("Error opening file!\n");
-        exit(1);
-    }
-    if (fgets(line, sizeof (line), f)) {
-          printf("next line= %s\n", line);
-        }
-    initial_timestamp = strtoul(line, plus, 10);
-    fclose(f);
-    
-    timestamp = timestamp - initial_timestamp;
-    
-    f = fopen("tempi_ricezione", "a");
-    if (f == NULL)
-    {
-        printf("Error opening file!\n");
-        exit(1);
-    }
-    fprintf(f, "tempo ricezione SDP: %lu\n", timestamp);
-    fclose(f);
-}
-
-void write_test_source()
-{
-    unsigned long timestamp = get_timestamp();
-    FILE *f = fopen("tempi_ricezione", "a");
-    if (f == NULL)
-    {
-        printf("Error opening file!\n");
-        exit(1);
-    }
-    fprintf(f, "%lu\n", timestamp);
-    fclose(f);
-}
-
 void handle_msg(const struct nodeID* nodeid,bool source_role)
 {
 	uint8_t buff[BUFFSIZE];
@@ -206,9 +163,6 @@ void handle_msg(const struct nodeID* nodeid,bool source_role)
 		fprintf(stderr,"Error receiving message. Maybe larger than %d bytes\n", BUFFSIZE);
 	}else
 		switch (buff[0] /* Message Type */) {
-                        case MSG_TYPE_SDP:
-                            fprintf(stderr,"handle_msg: RICEVUTO MESSAGGIO MSG_TYPE_SDP\n");
-                            write_test();
 			case MSG_TYPE_TMAN:
 			case MSG_TYPE_NEIGHBOURHOOD:
 			case MSG_TYPE_TOPOLOGY:
@@ -226,6 +180,10 @@ void handle_msg(const struct nodeID* nodeid,bool source_role)
 				dtprintf("Sign message received:\n");
 				sigParseData(remote, buff, len);
 				break;
+                        case MSG_TYPE_SDP:
+                            dtprintf("SDP message received:\n");
+                            SDP_parse_data(remote, buff, len, nodeid);
+                            break;
 			default:
 				fprintf(stderr, "Unknown Message Type %x\n", buff[0]);
 		}
@@ -259,10 +217,11 @@ void loop_update(int loop_counter)
 		}
 }
 
-void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval, char * my_session_id)
+void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval)
 {
   struct chunk *new_chunk;
-	new_chunk = generated_chunk(&(chunk_time_interval->tv_usec), my_session_id);
+
+	new_chunk = generated_chunk(&(chunk_time_interval->tv_usec));
 	usec2timeval(chunk_time_interval,chunk_time_interval->tv_usec);
 	if (new_chunk && add_chunk(new_chunk))
 	{ 
@@ -271,7 +230,7 @@ void spawn_chunk(int chunk_copies,struct timeval *chunk_time_interval, char * my
 	}
 }
 
-void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int chunk_copies, int buff_size, char * my_session_id)
+void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int chunk_copies, int buff_size)
 /* source peer loop
  * @videofile: video input filename
  * @nodeid: local network identifier
@@ -280,7 +239,6 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
  * @buff_size: size of the chunk buffer
  */
 {
-        write_test_source();
 	bool running=true;
 	int data_ready,loop_counter=0;
 	struct timeval awake_epoch, sleep_timer;
@@ -297,13 +255,7 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
     exit(-1);
   }
         
-        fprintf(stderr,"source_loop: AGGIUNTA DEL MIO SESION ID IN CORSO..\n");
-        topology_add_session_id(my_session_id);
-        topology_set_distributed(my_session_id, true);
-        fprintf(stderr,"source_loop: AGGIUNTO IL MIO SESSION ID\n");
-        
-        /*topology_add_session_id(4);
-        topology_set_distributed(4, true);*/
+        topology_SDP_source_init(videofile, nodeid);
         
 	while(running)
 	{
@@ -326,7 +278,7 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
 				}
 				else // chunk time ! <- needed for chunkisers withouth filedescritors, e.g., avf
 				{
-					spawn_chunk(chunk_copies,&chunk_time_interval, my_session_id);
+					spawn_chunk(chunk_copies,&chunk_time_interval);
 					timeradd_inplace(&chunk_epoch, &chunk_time_interval); 
 				}
 
@@ -341,13 +293,19 @@ void source_loop(const char *videofile, struct nodeID *nodeid, int csize, int ch
 				break;
 
 			case 2: //file descriptor ready
-				spawn_chunk(chunk_copies,&chunk_time_interval, my_session_id);
+				spawn_chunk(chunk_copies,&chunk_time_interval);
 				break;
 		
 			default:
 				fprintf(stderr,"[ERROR] select on file descriptors returned error: %d\n",data_ready);
 		}
 		loop_update(loop_counter++);
+                if(loop_counter == TIME_TO_SPREAD_SDP){
+                    topology_SDP_spread(nodeid);
+                }
+                if(loop_counter % KEEP_ALIVE_PERIOD == 0){
+                    topology_SDP_existence_spread(nodeid);
+                }
 	}
 }
 
@@ -367,6 +325,8 @@ void loop(struct nodeID *nodeid,int csize,int buff_size)
  	stream_init(buff_size, nodeid);
   topology_update();
 
+  topology_SDP_init();
+  
 	while(running)
 	{
     tout_init(&wait_timer, &epoch);
@@ -381,6 +341,9 @@ void loop(struct nodeID *nodeid,int csize,int buff_size)
     	timeradd_inplace(&epoch, &period);
 		}
 		loop_update(loop_counter++);	
+                if(loop_counter % KEEP_ALIVE_PERIOD == 0){
+                    topology_SDP_existence_spread(nodeid);
+                }
 	}
 }
 

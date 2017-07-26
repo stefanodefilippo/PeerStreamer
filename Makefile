@@ -121,6 +121,7 @@ OBJS += chunklock.o
 OBJS += transaction.o
 OBJS += ratecontrol.o
 OBJS += channel.o
+OBJS += SDP_distribution.o
 ifdef THREADS
 CPPFLAGS += -DTHREADS
 OBJS += loop-mt.o

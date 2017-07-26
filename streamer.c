@@ -28,7 +28,6 @@
 #include <time.h>
 #include <errno.h>
 #include <math.h>
-#include <time.h>
 #ifndef NAN	//NAN is missing in some old math.h versions
 #define NAN            (0.0/0.0)
 #endif
@@ -50,10 +49,10 @@
 #include "streamer.h"
 #include "node_addr.h"
 #include "version.h"
+#include "SDP_distribution.h"
 
 #ifndef EXTRAVERSION
 #define EXTRAVERSION "Unknown"
-#define SESSION_ID_SIZE 32
 #endif
 
 static struct nodeID *my_sock;
@@ -63,15 +62,11 @@ const char *peername = NULL;
 static uint16_t chunk_test_port = 60006;
 static const char *chunk_test_ip = "127.0.0.1";
 static int chunk_test_mtu = 1372;
-static char my_session_id[SESSION_ID_SIZE];
-//static int my_session_id = 6;
-static unsigned long my_session_version = 0;
+
 static const char *my_iface = NULL;
 static int port = 6666;
 static int srv_port;
 static const char *srv_ip = "";
-/*static int srv_port1 = 8000;
-static const char *srv_ip1 = "127.0.0.1";*/
 static int chunks_per_second = 25;
 static double capacity_override = NAN;
 static int multiply = 3;
@@ -82,7 +77,6 @@ static const char *fname = "/dev/stdin";
 static const char *output_config ="";
 const char * xloptimization = NULL;
 static const char *net_helper_config = "";
-static const char *session_id_set_config = "";
 static const char *topo_config = "";
 unsigned char msgTypes[] = {MSG_TYPE_CHUNK,MSG_TYPE_SIGNALLING};
 bool chunk_log = false;
@@ -165,7 +159,6 @@ static void print_usage(int argc, char *argv[])
     "\t[-S]: set initial chunk_id (source only).\n"
     "\t[-s]: set start_id from which to start output.\n"
     "\t[-e]: set end_id at which to end output.\n"
-    "\t[-w]: set policy for SDP distribution.\n"
     "\n"
     "Special options\n"
     "\t[--randomize_start us]: random wait before starting [0..us] microseconds.\n"
@@ -254,7 +247,7 @@ static void cmdline_parse(int argc, char *argv[])
 	{0, 0, 0, 0}
   };
 
-    while ((o = getopt_long (argc, argv, "r:a:b:o:O:c:p:i:P:I:f:F:m:lC:N:n:M:t:s:e:S:6v:w:x:y:z:",long_options, &option_index)) != -1) { //use this function to manage long options
+    while ((o = getopt_long (argc, argv, "r:a:b:o:O:c:p:i:P:I:f:F:m:lC:N:n:M:t:s:e:S:6v:x:y:z:",long_options, &option_index)) != -1) { //use this function to manage long options
     switch(o) {
       case 0: //for long options
         if( strcmp( "chunk_log", long_options[option_index].name ) == 0 ) { chunk_log = true; }
@@ -358,9 +351,6 @@ static void cmdline_parse(int argc, char *argv[])
         fprintf(stderr, "\tlibevent: %s\n", LIBEVENT_VERSION);
         fprintf(stderr, "\tlibxml2: %s\n", LIBXML2_VERSION);
 	    exit(0);
-      case 'w':
-        session_id_set_config = strdup(optarg);
-        break; 
       case 'x':
         chunk_test_port = atoi(optarg);
         break;
@@ -442,7 +432,7 @@ static struct nodeID *init(void)
     return NULL;
   }
   for (i=0;i<2;i++)
-	  bind_msg_type(msgTypes[i]);
+	  bind_msg_type(msgTypes[i]);  
   myID = net_helper_init(my_addr, port, net_helper_config);
   if (myID == NULL) {
     fprintf(stderr, "Error creating my socket (%s:%d)!\n", my_addr, port);
@@ -477,14 +467,6 @@ void leave(int sig) {
   exit(sig);
 }
 
-unsigned long get_timestamp()
-{
-    struct timeval tv;
-    gettimeofday(&tv,NULL);
-    unsigned long time_in_micros = 1000000 * tv.tv_sec + tv.tv_usec;
-    return time_in_micros;
-}
-
 // wait [0..max] microsec
 static void random_wait(int max) {
     uint64_t us;
@@ -502,50 +484,6 @@ static void random_wait(int max) {
 #endif
 }
 
-void prepare_SDP(char * my_session_id)
-{
-    fprintf(stderr, "prepare_SDP: PREPARAZIONE DEL FILE SDP...\n");
-    char s[64];
-    strcpy(s, "SDP");
-    /*char str[15];
-    sprintf(str, "%d", my_session_id);*/
-    strcat(s + 3, my_session_id);
-    FILE *f = fopen(s, "w");
-    if (f == NULL)
-    {
-        printf("Error opening file!\n");
-        exit(1);
-    }
-    fprintf(f, "v=0\n");
-    fprintf(f, "o= - %lu %lu IN IP4 %s\n", my_session_version, my_session_version, iface_addr(my_iface));
-    fprintf(f, "ESP H264+AAC STREAM\n");
-    fprintf(f, "c=IN IP4 %s\n", iface_addr(my_iface));
-    fprintf(f, "t=0 0\n");
-    fprintf(f, "m=video 7000 RTP/AVP 96\n");
-    fprintf(f, "a=rtpmap:96 H264/90000\n");
-    fprintf(f, "a=fmtp:96 media=video; clock-rate=90000; encoding-name=H264; sprop-parameter-sets=Z2QAH6zZQFAFuwEQAAADABAAAAMDAPGDGWA=,aOvjyyLA\n");
-    fprintf(f, "a=control:trackID=1\n");
-    fprintf(f, "m=audio 7002 RTP/AVP 96\n");
-    fprintf(f, "a=rtpmap:96 MP4A-LATM/48000\n");
-    fprintf(f, "a=fmtp:96 media=audio; clock-rate=48000; encoding-name=MP4A-LATM; cpresent=0; config=40002320adca00; payload=96\n");
-    fprintf(f, "a=control:trackID=2\0");
-    fclose(f);
-}
-
-void prepare_session_id(){
-    for(int i = 0; i < SESSION_ID_SIZE; i++){
-        my_session_id[i] = '-';
-    }
-    fprintf(stderr, "prepare_session_id: SESSION_ID_GENERATO: %s\n", my_session_id);
-    strcpy(my_session_id + 16, iface_addr(my_iface));
-    srand(time(NULL) + getpid());
-    for(int i = 0; i < 16 - 1; i++){
-        my_session_id[i] = 'A' + (rand() % 26);
-    }
-    my_session_id[SESSION_ID_SIZE - 1] = '\0';
-    fprintf(stderr, "prepare_session_id: SESSION_ID_GENERATO: %s\n", my_session_id);
-}
-
 int main(int argc, char *argv[])
 {
 
@@ -559,17 +497,14 @@ int main(int argc, char *argv[])
     fprintf(stderr, "Cannot initialize streamer, exiting!\n");
     return -1;
   }
-  my_session_version = get_timestamp();
   if (srv_port != 0) {
     fprintf(stderr, "Hi, I play the generic peer role\n");
     struct nodeID *srv;
-    struct nodeID *srv1;
-    
+
     if (chunk_test_init(chunk_test_port, chunk_test_ip, chunk_test_mtu)) {
       fprintf(stderr, "Cannot initialize chunk test: %s:%d\n", chunk_test_ip, chunk_test_port);
       return -1;
     }
-    
 
     //random wait a bit before starting
     if (randomize_start) random_wait(randomize_start);
@@ -577,36 +512,18 @@ int main(int argc, char *argv[])
     output_init(outbuff_size, output_config);
 
     srv = create_node(srv_ip, srv_port);
-    //srv1 = create_node(srv_ip1, srv_port1);
 	
     if (srv == NULL) {
       fprintf(stderr, "Cannot resolve remote address %s:%d\n", srv_ip, srv_port);
 
       return -1;
     }
-    
-    /*if (srv1 == NULL) {
-      fprintf(stderr, "Cannot resolve remote address %s:%d\n", srv_ip1, srv_port1);
-
-      return -1;
-    }*/
-    
-    //topology_node_insert(srv1);//20
-    topology_node_insert(srv);//10
-    
-    /*srand(time(NULL));   // should only be called once
-    int r = rand() % 50;      // returns a pseudo-random integer between 0 and RAND_MAX
-    prepare_SDP(r);
-    topology_add_session_id(r);
-    topology_set_distributed(r, true);*/
+    topology_node_insert(srv);
 
     loop(my_sock, 1000000 / chunks_per_second, buff_size);
   } else {
     fprintf(stderr, "Hi, I play the source role\n");
-    prepare_session_id();
-    prepare_SDP(my_session_id);
-    //prepare_SDP(4);
-    source_loop(fname, my_sock, 1000000 / chunks_per_second, multiply, buff_size, my_session_id);
+    source_loop(fname, my_sock, 1000000 / chunks_per_second, multiply, buff_size);
   }
   return 0;
 }

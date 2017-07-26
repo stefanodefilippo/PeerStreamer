@@ -33,5 +33,10 @@ int topology_node_insert(struct nodeID *neighbour);
 int topology_init(struct nodeID *myID, const char *config);
 void topology_message_parse(struct nodeID *from, const uint8_t *buff, int len);
 void peerset_print(const struct peerset * pset,const char * name);
+void SDP_parse_data(struct nodeID *from, const uint8_t *buff, int len, struct nodeID *myID);
+void topology_SDP_init();
+void topology_SDP_source_init(const char *fname, struct nodeID *myID);
+void topology_SDP_spread(struct nodeID *myID);
+topology_SDP_existence_spread(struct nodeID *myID);
 
 #endif	/* TOPOLOGY_H */

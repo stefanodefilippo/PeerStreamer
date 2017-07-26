@@ -22,7 +22,7 @@
 #define LOOP_H
 
 void loop(struct nodeID *s, int period, int buff_size);
-void source_loop(const char *fname, struct nodeID *s, int csize, int chunks, int buff_size, char * my_session_id);
+void source_loop(const char *fname, struct nodeID *s, int csize, int chunks, int buff_size);
 
 int chunk_test_init(const uint16_t port, const char *ip, const int mtu);
 

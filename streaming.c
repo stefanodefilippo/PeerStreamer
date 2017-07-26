@@ -19,7 +19,6 @@
  *
  */
 #include <sys/time.h>
-#include <int_coding.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -59,7 +58,6 @@
 #include "scheduler_la.h"
 
 # define CB_SIZE_TIME_UNLIMITED 1e12
-# define SESSION_ID_SIZE 32
 uint64_t CB_SIZE_TIME = CB_SIZE_TIME_UNLIMITED;	//in millisec, defaults to unlimited
 
 static bool heuristics_distance_maxdeliver = false;
@@ -71,7 +69,6 @@ struct chunk_attributes {
   uint64_t deadline;
   uint16_t deadline_increment;
   uint16_t hopcount;
-  char id_session[SESSION_ID_SIZE];
 } __attribute__((packed));
 
 extern bool chunk_log;
@@ -148,7 +145,7 @@ int source_init(const char *fname, struct nodeID *myID, int *fds, int fds_size, 
   return 0;
 }
 
-void chunk_attributes_fill(struct chunk* c, char * my_session_id)
+void chunk_attributes_fill(struct chunk* c)
 {
   struct chunk_attributes * ca;
   int priority = 1;
@@ -174,9 +171,6 @@ void chunk_attributes_fill(struct chunk* c, char * my_session_id)
   ca->deadline = c->id;
   ca->deadline_increment = priority * 2;
   ca->hopcount = 0;
-  //ca->id_flow = 3;// -> 768
-  //ca->id_flow = 10; -> 2560
-  strcpy(ca->id_session, my_session_id);// -> 15104
 }
 
 int chunk_get_hopcount(const struct chunk* c) {
@@ -335,27 +329,15 @@ void ack_chunk(struct chunk *c, struct nodeID *from, uint16_t trans_id)
   send_ack(from, trans_id);	//send explicit ack
 }
 
-  static struct chunk flag;
-  int i = 0;
-  int j = 0;
 void received_chunk(struct nodeID *from, const uint8_t *buff, int len)
 {
-     struct chunk_attributes * ca;
-
   int res;
   static struct chunk c;
   struct peer *p;
   static int bcast_cnt;
   uint16_t transid;
- if (am_i_source()){
-     return;
- }
+
   res = parseChunkMsg(buff + 1, len - 1, &c, &transid);
-  i++;
-  ca = (struct chunk_attributes *) c.attributes;
-  char id_session[SESSION_ID_SIZE];
-  strcpy(id_session, ca->id_session);
-  fprintf(stderr, "---------RICEVUTO CHUNK CON SESSION_ID = %s---------\n", (id_session));
   if (res > 0) {
 		if (chunk_loss_interval && c.id % chunk_loss_interval == 0) {
 			fprintf(stderr,"[NOISE] Chunk %d discarded >:)\n",c.id);
@@ -392,7 +374,7 @@ void received_chunk(struct nodeID *from, const uint8_t *buff, int len)
   }
 }
 
-struct chunk *generated_chunk(suseconds_t *delta, char * my_session_id)
+struct chunk *generated_chunk(suseconds_t *delta)
 {
   struct chunk *c;
 
@@ -412,7 +394,7 @@ struct chunk *generated_chunk(suseconds_t *delta, char * my_session_id)
     return NULL;
   }
   dprintf("Generated chunk %d of %d bytes\n",c->id, c->size);
-  chunk_attributes_fill(c, my_session_id);
+  chunk_attributes_fill(c);
   return c;
 }
 
